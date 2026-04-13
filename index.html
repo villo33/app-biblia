@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Biblia en 1 Año </title>
+
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4facfe">
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+*{ transition: all 0.2s ease; }
+
+body{
+    font-family:'Poppins',sans-serif;
+    margin:0;
+    background: linear-gradient(135deg,#dff6ff,#bfe8ff,#99d6ff);
+    color:#033e6b;
+}
+
+.container{max-width:1100px;margin:auto;padding:20px;}
+
+.header{text-align:center;margin-bottom:20px;}
+.header p{opacity:0.7;}
+
+nav{
+    display:flex;justify-content:center;flex-wrap:wrap;gap:12px;
+    background:rgba(255,255,255,0.6);
+    backdrop-filter: blur(10px);
+    padding:15px;border-radius:25px;margin-bottom:20px;
+}
+
+nav button{
+    border:none;padding:10px 16px;border-radius:12px;
+    cursor:pointer;background:white;
+}
+
+nav button:hover{
+    transform:translateY(-3px) scale(1.05);
+    background:#4facfe;color:white;
+}
+
+.card{
+    background:white;padding:20px;border-radius:25px;margin-bottom:20px;
+}
+
+.day{
+    display:flex;justify-content:space-between;
+    padding:10px;margin:6px 0;border-left:5px solid #4facfe;
+}
+
+.day.completed{
+    background:#e6f7ff;border-left:5px solid #00c853;
+}
+
+.day.today{
+    border:2px solid #00c853;background:#e8fff3;
+}
+
+.hidden{display:none}
+
+.progress-container{background:#eee;border-radius:20px;}
+
+.progress-bar{
+    height:20px;
+    background:linear-gradient(90deg,#00c853,#4facfe);
+    width:0%;
+}
+
+.action-btn{
+    margin-top:10px;border:none;padding:10px;border-radius:10px;
+    cursor:pointer;
+}
+
+.green{background:#00c853;color:white;}
+.red{background:#ff5252;color:white;}
+
+#installBtn{display:none;background:#00c853;color:white;}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="header">
+<h1>📖 Biblia en 1 Año</h1>
+<p>Crece espiritualmente cada día 🙌</p>
+</div>
+
+<nav>
+<button onclick="show('plan')">📖 Plan</button>
+<button onclick="show('today')">📅 Hoy</button>
+<button onclick="show('stats')">📊 Stats</button>
+<button id="installBtn">📲 Instalar</button>
+</nav>
+
+<div id="plan" class="card"></div>
+
+<div id="today" class="card hidden">
+<h3>📅 Lectura de Hoy</h3>
+<div id="todayText"></div>
+
+<button class="action-btn green" onclick="markToday()">✔ Marcar como leído</button>
+<button class="action-btn red" onclick="undoToday()">⬅ Deshacer</button>
+</div>
+
+<div id="stats" class="card hidden">
+<h3>📊 Progreso</h3>
+<div class="progress-container">
+<div class="progress-bar" id="bar"></div>
+</div>
+<p id="percent"></p>
+<p>🔥 Racha: <span id="streak"></span></p>
+<p>📘 Días: <span id="done"></span>/365</p>
+</div>
+
+<div id="search" class="card hidden">
+<input id="searchInput" placeholder="Buscar libro..." onkeyup="searchBook()">
+<div id="results"></div>
+</div>
+
+</div>
+
+<script>
+
+// SERVICE WORKER
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js");
+}
+
+// INSTALAR
+let deferredPrompt;
+const installBtn = document.getElementById("installBtn");
+
+window.addEventListener("beforeinstallprompt", (e)=>{
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.style.display="block";
+});
+
+installBtn.onclick=()=> deferredPrompt?.prompt();
+
+// LIBROS
+const books = [
+["Génesis",50],["Éxodo",40],["Levítico",27],["Números",36],["Deuteronomio",34],
+["Josué",24],["Jueces",21],["Rut",4],["1 Samuel",31],["2 Samuel",24],
+["1 Reyes",22],["2 Reyes",25],["1 Crónicas",29],["2 Crónicas",36],["Esdras",10],
+["Nehemías",13],["Ester",10],["Job",42],["Salmos",150],["Proverbios",31],
+["Eclesiastés",12],["Cantares",8],["Isaías",66],["Jeremías",52],["Lamentaciones",5],
+["Ezequiel",48],["Daniel",12],["Oseas",14],["Joel",3],["Amós",9],["Abdías",1],
+["Jonás",4],["Miqueas",7],["Nahúm",3],["Habacuc",3],["Sofonías",3],["Hageo",2],
+["Zacarías",14],["Malaquías",4],["Mateo",28],["Marcos",16],["Lucas",24],["Juan",21],
+["Hechos",28],["Romanos",16],["1 Corintios",16],["2 Corintios",13],["Gálatas",6],
+["Efesios",6],["Filipenses",4],["Colosenses",4],["1 Tesalonicenses",5],["2 Tesalonicenses",3],
+["1 Timoteo",6],["2 Timoteo",4],["Tito",3],["Filemón",1],["Hebreos",13],["Santiago",5],
+["1 Pedro",5],["2 Pedro",3],["1 Juan",5],["2 Juan",1],["3 Juan",1],["Judas",1],["Apocalipsis",22]
+];
+
+// 🔥 GENERAR PLAN PERFECTO
+let oldT=[], newT=[], wisdom=[];
+
+// CLASIFICAR
+books.forEach(([b,t])=>{
+    for(let c=1;c<=t;c++){
+        let cap = `${b} ${c}`;
+
+        if(["Salmos","Proverbios"].includes(b)) wisdom.push(cap);
+        else if(b==="Mateo"||b==="Marcos"||b==="Lucas"||b==="Juan"||b==="Hechos"||b==="Romanos"||b.includes("Corintios")||b.includes("Tesalonicenses")||b.includes("Timoteo")||b==="Tito"||b==="Filemón"||b==="Hebreos"||b==="Santiago"||b.includes("Pedro")||b.includes("Juan")||b==="Judas"||b==="Apocalipsis"){
+            newT.push(cap);
+        } else {
+            oldT.push(cap);
+        }
+    }
+});
+
+let plan=[];
+for(let d=0; d<365; d++){
+    let day=[];
+    let used=new Set();
+
+    function pick(arr){
+        for(let i=0;i<arr.length;i++){
+            let book=arr[i].split(" ")[0];
+            if(!used.has(book)){
+                used.add(book);
+                return arr.splice(i,1)[0];
+            }
+        }
+        return null;
+    }
+
+    if(oldT.length) day.push(pick(oldT));
+    if(newT.length) day.push(pick(newT));
+    if(wisdom.length) day.push(pick(wisdom));
+
+    // rellenar si falta
+    let pools=[oldT,newT,wisdom];
+    for(let p of pools){
+        if(day.length>=3) break;
+        let x=pick(p);
+        if(x) day.push(x);
+    }
+
+    plan.push(day);
+}
+
+// PROGRESO
+let todayIndex=parseInt(localStorage.getItem("currentDay"))||0;
+
+const planDiv=document.getElementById('plan');
+
+function renderPlan(){
+    planDiv.innerHTML="";
+    let data=JSON.parse(localStorage.getItem('data')||'[]');
+
+    plan.forEach((d,idx)=>{
+        let div=document.createElement('div');
+        div.className='day';
+
+        if(data[idx]) div.classList.add("completed");
+        if(idx===todayIndex) div.classList.add("today");
+
+        div.innerHTML=`Día ${idx+1}: ${d.join(', ')}
+        <input type='checkbox' ${data[idx]?"checked":""}
+        onchange='save(${idx},this.checked)'>`;
+
+        planDiv.appendChild(div);
+    });
+}
+
+renderPlan();
+
+// HOY
+function renderToday(){
+    let lectura=plan[todayIndex]?.join(', ')||"Terminaste 🎉";
+    todayText.innerHTML=`<h3>${lectura}</h3>`;
+}
+renderToday();
+
+function markToday(){
+    save(todayIndex,true);
+    todayIndex++;
+    localStorage.setItem("currentDay",todayIndex);
+    renderToday();
+    renderPlan();
+}
+
+function undoToday(){
+    if(todayIndex>0){
+        todayIndex--;
+        let data=JSON.parse(localStorage.getItem('data')||'[]');
+        data[todayIndex]=false;
+        localStorage.setItem('data',JSON.stringify(data));
+        localStorage.setItem("currentDay",todayIndex);
+        renderToday();
+        renderPlan();
+        updateStats();
+    }
+}
+
+// GUARDAR
+function save(i,val){
+    let data=JSON.parse(localStorage.getItem('data')||'[]');
+    data[i]=val;
+    localStorage.setItem('data',JSON.stringify(data));
+    updateStats();
+}
+
+// STATS
+function updateStats(){
+    let data=JSON.parse(localStorage.getItem('data')||'[]');
+    let done=data.filter(x=>x).length;
+    let percent=Math.round(done/365*100);
+
+    percentEl.innerText=percent+'%';
+    bar.style.width=percent+'%';
+    doneEl.innerText=done;
+
+    let streak=0;
+    for(let i=data.length-1;i>=0;i--){
+        if(data[i]) streak++; else break;
+    }
+    streakEl.innerText=streak;
+}
+
+const percentEl=document.getElementById("percent");
+const bar=document.getElementById("bar");
+const doneEl=document.getElementById("done");
+const streakEl=document.getElementById("streak");
+
+updateStats();
+
+// BUSCAR
+function searchBook(){
+    let v=searchInput.value.toLowerCase();
+    let res='';
+    plan.forEach((d,i)=>{
+        d.forEach(c=>{
+            if(c.toLowerCase().includes(v)){
+                res+=`<div>Día ${i+1}: ${c}</div>`;
+            }
+        });
+    });
+    results.innerHTML=res;
+}
+
+// NAV
+function show(id){
+    ['plan','today','stats','search'].forEach(s=>{
+        document.getElementById(s).classList.add('hidden');
+    });
+    document.getElementById(id).classList.remove('hidden');
+}
+
+</script>
+
+</body>
+</html>
